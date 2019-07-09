@@ -3,10 +3,11 @@ port module Main exposing (Model, Msg(..), init, main, receiveMessage, sendMessa
 import Browser
 import Browser.Navigation as Nav
 import Html exposing (..)
-import Html.Attributes exposing (..)
-import Html.Events exposing (onClick)
+import Html.Attributes exposing (href)
+import Html.Events exposing (onClick, onInput)
 import Json.Decode as D
 import Json.Encode as E
+import Page.Register as Register
 import Url
 
 
@@ -34,12 +35,23 @@ type alias Model =
     { key : Nav.Key
     , url : Url.Url
     , receivedMessages : List String
+    , registerModel : Register.Model
     }
 
 
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
-    ( Model key url [], Cmd.none )
+    let
+        registerModel =
+            Register.init
+    in
+    ( { key = key
+      , url = url
+      , receivedMessages = []
+      , registerModel = registerModel
+      }
+    , Cmd.none
+    )
 
 
 
@@ -51,6 +63,7 @@ type Msg
     | UrlChanged Url.Url
     | MessageReceived String
     | SendMessageClicked
+    | RegisterMsg Register.Msg
 
 
 port sendMessage : E.Value -> Cmd msg
@@ -62,6 +75,18 @@ port receiveMessage : (D.Value -> msg) -> Sub msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        RegisterMsg registerMsg ->
+            let
+                ( updatedModel, registerCmd ) =
+                    Register.update registerMsg model.registerModel
+            in
+            ( { model
+                | registerModel =
+                    updatedModel
+              }
+            , Cmd.map RegisterMsg registerCmd
+            )
+
         LinkClicked urlRequest ->
             case urlRequest of
                 Browser.Internal url ->
@@ -105,7 +130,11 @@ subscriptions _ =
 
 view : Model -> Browser.Document Msg
 view model =
-    { title = "URL Interceptor"
+    let
+        registerPage =
+            Register.view model.registerModel
+    in
+    { title = registerPage.title
     , body =
         [ text "The current URL is: "
         , b [] [ text (Url.toString model.url) ]
@@ -118,6 +147,7 @@ view model =
             ]
         , button [ onClick SendMessageClicked ] [ text "Send message!" ]
         , ul [] (List.map (\msg -> li [] [ text msg ]) model.receivedMessages)
+        , Html.map RegisterMsg registerPage.content
         ]
     }
 
