@@ -3,6 +3,9 @@ module Page.Register exposing (Model, Msg, init, update, view)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
+import Http
+import Json.Decode exposing (string)
+import Page.CreateUserJson exposing (..)
 
 
 
@@ -46,7 +49,7 @@ view model =
 
 viewForm : Form -> Html Msg
 viewForm form =
-    Html.form []
+    Html.form [ onSubmit SubmittedForm ]
         [ p []
             [ label
                 [ for "register_username" ]
@@ -103,6 +106,8 @@ type Msg
     | EnteredUsername String
     | EnteredPassword String
     | EnteredRepeatPassword String
+    | SubmittedForm
+    | CompletedRegister (Result Http.Error String)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -119,6 +124,25 @@ update msg model =
 
         EnteredRepeatPassword repeatPassword ->
             updateForm (\form -> { form | repeatPassword = repeatPassword }) model
+
+        SubmittedForm ->
+            ( model
+            , Http.post
+                { url = "//localhost:8080/users"
+                , body =
+                    Http.jsonBody
+                        (encodeCreateUser
+                            { name = model.form.username
+                            , email = model.form.email
+                            , password = model.form.password
+                            }
+                        )
+                , expect = Http.expectJson CompletedRegister string
+                }
+            )
+
+        CompletedRegister _ ->
+            ( model, Cmd.none )
 
 
 {-| Helper function for `update`. Updates the form and returns Cmd.none.
