@@ -1,11 +1,12 @@
-module Page.Register exposing (Model, Msg, init, update, view)
+module Page.Register exposing (Model, Msg(..), init, update, view)
 
+import Global exposing (Global, Session(..), SessionUser)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Http
-import Json.Decode exposing (string)
-import Page.CreateUserJson exposing (..)
+import Json.Decode as D
+import Json.Encode as E
 
 
 
@@ -13,7 +14,8 @@ import Page.CreateUserJson exposing (..)
 
 
 type alias Model =
-    { form : Form
+    { global : Global
+    , form : Form
     }
 
 
@@ -25,9 +27,10 @@ type alias Form =
     }
 
 
-init : Model
-init =
-    { form =
+init : Global -> Model
+init global =
+    { global = global
+    , form =
         { email = ""
         , username = ""
         , password = ""
@@ -107,7 +110,7 @@ type Msg
     | EnteredPassword String
     | EnteredRepeatPassword String
     | SubmittedForm
-    | CompletedRegister (Result Http.Error String)
+    | CompletedRegister (Result Http.Error SessionUser)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -137,12 +140,44 @@ update msg model =
                             , password = model.form.password
                             }
                         )
-                , expect = Http.expectJson CompletedRegister string
+                , expect = Http.expectJson CompletedRegister sessionUserDecoder
                 }
             )
 
-        CompletedRegister _ ->
+        CompletedRegister (Ok sessionUser) ->
+            ( updateGlobal (\global -> { global | session = LoggedIn sessionUser }) model, Cmd.none )
+
+        CompletedRegister (Err _) ->
             ( model, Cmd.none )
+
+
+updateGlobal : (Global -> Global) -> { a | global : Global } -> { a | global : Global }
+updateGlobal f model =
+    { model | global = f model.global }
+
+
+type alias CreateUser =
+    { name : String
+    , email : String
+    , password : String
+    }
+
+
+encodeCreateUser : CreateUser -> E.Value
+encodeCreateUser u =
+    E.object
+        [ ( "name", E.string u.name )
+        , ( "email", E.string u.email )
+        , ( "password", E.string u.password )
+        ]
+
+
+sessionUserDecoder : D.Decoder SessionUser
+sessionUserDecoder =
+    D.map3 SessionUser
+        (D.at [ "id" ] D.int)
+        (D.at [ "name" ] D.string)
+        (D.at [ "email" ] D.string)
 
 
 {-| Helper function for `update`. Updates the form and returns Cmd.none.

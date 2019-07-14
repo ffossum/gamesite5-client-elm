@@ -1,7 +1,8 @@
-port module Main exposing (Model, Msg(..), init, main, receiveMessage, sendMessage, subscriptions, update, view, viewLink)
+port module Main exposing (Model, init, main, receiveMessage, sendMessage, subscriptions, update, view, viewLink)
 
 import Browser
 import Browser.Navigation as Nav
+import Global exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (href)
 import Html.Events exposing (onClick, onInput)
@@ -31,27 +32,21 @@ main =
 -- MODEL
 
 
-type alias Model =
-    { key : Nav.Key
-    , url : Url.Url
-    , receivedMessages : List String
-    , registerModel : Register.Model
-    }
+type Model
+    = Home Global
+    | Register Register.Model
 
 
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
     let
+        global =
+            { navKey = key, session = NotLoggedIn }
+
         registerModel =
-            Register.init
+            Register.init global
     in
-    ( { key = key
-      , url = url
-      , receivedMessages = []
-      , registerModel = registerModel
-      }
-    , Cmd.none
-    )
+    ( Register registerModel, Cmd.none )
 
 
 
@@ -72,39 +67,49 @@ port sendMessage : E.Value -> Cmd msg
 port receiveMessage : (D.Value -> msg) -> Sub msg
 
 
+getGlobal : Model -> Global
+getGlobal model =
+    case model of
+        Home global ->
+            global
+
+        Register registerModel ->
+            registerModel.global
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case msg of
-        RegisterMsg registerMsg ->
+    case ( msg, model ) of
+        ( RegisterMsg registerMsg, Register registerModel ) ->
             let
                 ( updatedModel, registerCmd ) =
-                    Register.update registerMsg model.registerModel
+                    Register.update registerMsg registerModel
             in
-            ( { model
-                | registerModel =
-                    updatedModel
-              }
+            ( Register updatedModel
             , Cmd.map RegisterMsg registerCmd
             )
 
-        LinkClicked urlRequest ->
+        ( LinkClicked urlRequest, _ ) ->
             case urlRequest of
                 Browser.Internal url ->
-                    ( model, Nav.pushUrl model.key (Url.toString url) )
+                    ( model, Nav.pushUrl (getGlobal model).navKey (Url.toString url) )
 
                 Browser.External href ->
                     ( model, Nav.load href )
 
-        UrlChanged url ->
-            ( { model | url = url }
+        ( UrlChanged url, _ ) ->
+            ( model
             , Cmd.none
             )
 
-        SendMessageClicked ->
+        ( SendMessageClicked, _ ) ->
             ( model, sendMessage (E.string "Hello") )
 
-        MessageReceived m ->
-            ( { model | receivedMessages = m :: model.receivedMessages }, Cmd.none )
+        ( MessageReceived m, _ ) ->
+            ( model, Cmd.none )
+
+        ( _, _ ) ->
+            ( model, Cmd.none )
 
 
 
@@ -130,26 +135,22 @@ subscriptions _ =
 
 view : Model -> Browser.Document Msg
 view model =
-    let
-        registerPage =
-            Register.view model.registerModel
-    in
-    { title = registerPage.title
-    , body =
-        [ text "The current URL is: "
-        , b [] [ text (Url.toString model.url) ]
-        , ul []
-            [ viewLink "/home"
-            , viewLink "/profile"
-            , viewLink "/reviews/the-century-of-the-self"
-            , viewLink "/reviews/public-opinion"
-            , viewLink "/reviews/shah-of-shahs"
-            ]
-        , button [ onClick SendMessageClicked ] [ text "Send message!" ]
-        , ul [] (List.map (\msg -> li [] [ text msg ]) model.receivedMessages)
-        , Html.map RegisterMsg registerPage.content
-        ]
-    }
+    case model of
+        Register registerModel ->
+            let
+                registerPage =
+                    Register.view registerModel
+            in
+            { title = registerPage.title
+            , body =
+                [ Html.map RegisterMsg registerPage.content
+                ]
+            }
+
+        Home global ->
+            { title = "Home"
+            , body = [ div [] [ text "Home" ] ]
+            }
 
 
 viewLink : String -> Html msg
