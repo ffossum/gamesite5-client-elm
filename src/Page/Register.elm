@@ -46,7 +46,13 @@ init global =
 view : Model -> { title : String, content : Html Msg }
 view model =
     { title = "Register"
-    , content = viewForm model.form
+    , content =
+        case model.global.session of
+            NotLoggedIn ->
+                viewForm model.form
+
+            LoggedIn user ->
+                text "You are logged in"
     }
 
 
@@ -95,8 +101,7 @@ viewForm form =
                 ]
                 []
             ]
-        , button [ class "btn btn-lg btn-primary pull-xs-right" ]
-            [ text "Sign up" ]
+        , button [] [ text "Sign up" ]
         ]
 
 
@@ -144,8 +149,8 @@ update msg model =
                 }
             )
 
-        CompletedRegister (Ok sessionUser) ->
-            ( updateGlobal (\global -> { global | session = LoggedIn sessionUser }) model, Cmd.none )
+        CompletedRegister (Ok user) ->
+            ( updateGlobal (\global -> { global | session = LoggedIn user }) model, Cmd.none )
 
         CompletedRegister (Err _) ->
             ( model, Cmd.none )
