@@ -1,14 +1,15 @@
-port module Main exposing (Model, init, main, receiveMessage, sendMessage, subscriptions, update, view, viewLink)
+port module Main exposing (Model, init, main, receiveMessage, sendMessage, subscriptions, update, view)
 
 import Browser
 import Browser.Navigation as Nav
 import Global exposing (..)
 import Html exposing (..)
-import Html.Attributes exposing (href)
+import Html.Attributes exposing (href, target)
 import Html.Events exposing (onClick, onInput)
 import Json.Decode as D
 import Json.Encode as E
 import Page.Register as Register
+import Route as Route exposing (Route)
 import Url
 
 
@@ -35,6 +36,7 @@ main =
 type Model
     = Home Global
     | Register Register.Model
+    | NotFound Global
 
 
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
@@ -43,10 +45,10 @@ init flags url key =
         global =
             { navKey = key, session = NotLoggedIn }
 
-        registerModel =
-            Register.init global
+        initModel =
+            Home global
     in
-    ( Register registerModel, Cmd.none )
+    changePage url initModel
 
 
 
@@ -76,6 +78,9 @@ getGlobal model =
         Register registerModel ->
             registerModel.global
 
+        NotFound global ->
+            global
+
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -98,9 +103,7 @@ update msg model =
                     ( model, Nav.load href )
 
         ( UrlChanged url, _ ) ->
-            ( model
-            , Cmd.none
-            )
+            changePage url model
 
         ( SendMessageClicked, _ ) ->
             ( model, sendMessage (E.string "Hello") )
@@ -110,6 +113,26 @@ update msg model =
 
         ( _, _ ) ->
             ( model, Cmd.none )
+
+
+changePage : Url.Url -> Model -> ( Model, Cmd Msg )
+changePage url model =
+    let
+        maybeRoute =
+            Route.fromUrl url
+
+        global =
+            getGlobal model
+    in
+    case maybeRoute of
+        Nothing ->
+            Debug.todo "not found page"
+
+        Just Route.Home ->
+            ( Home global, Cmd.none )
+
+        Just Route.Register ->
+            ( Register (Register.init global), Cmd.none )
 
 
 
@@ -143,16 +166,25 @@ view model =
             in
             { title = registerPage.title
             , body =
-                [ Html.map RegisterMsg registerPage.content
+                [ viewLinks
+                , Html.map RegisterMsg registerPage.content
                 ]
             }
 
         Home global ->
             { title = "Home"
-            , body = [ div [] [ text "Home" ] ]
+            , body = [ viewLinks ]
+            }
+
+        NotFound global ->
+            { title = "Not found"
+            , body = [ text "Not found" ]
             }
 
 
-viewLink : String -> Html msg
-viewLink path =
-    li [] [ a [ href path ] [ text path ] ]
+viewLinks : Html msg
+viewLinks =
+    ul []
+        [ li [] [ a [ href "/" ] [ text "Home" ] ]
+        , li [] [ a [ href "/register" ] [ text "Register" ] ]
+        ]
