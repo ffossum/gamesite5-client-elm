@@ -136,7 +136,7 @@ update msg model =
         SubmittedForm ->
             ( model
             , Http.post
-                { url = "//localhost:8080/users"
+                { url = "//localhost:8080/api/users"
                 , body =
                     Http.jsonBody
                         (encodeCreateUser
