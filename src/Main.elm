@@ -6,12 +6,13 @@ import Global exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (href, target)
 import Html.Events exposing (onClick, onInput)
+import Http exposing (..)
 import Json.Decode as D
 import Json.Encode as E
 import Page.Login as Login
 import Page.Register as Register
 import Route as Route exposing (Route)
-import Url
+import Url exposing (Url)
 
 
 
@@ -41,7 +42,7 @@ type Model
     | NotFound Global
 
 
-init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
+init : () -> Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
     let
         global =
@@ -59,11 +60,13 @@ init flags url key =
 
 type Msg
     = LinkClicked Browser.UrlRequest
-    | UrlChanged Url.Url
+    | UrlChanged Url
     | MessageReceived String
     | SendMessageClicked
     | RegisterMsg Register.Msg
     | LoginMsg Login.Msg
+    | LogoutClicked
+    | LogoutComplete (Result Http.Error ())
 
 
 port sendMessage : E.Value -> Cmd msg
@@ -126,11 +129,22 @@ update msg model =
         ( MessageReceived m, _ ) ->
             ( model, Cmd.none )
 
+        ( LogoutClicked, _ ) ->
+            ( model
+            , Http.get
+                { url = "/api/logout"
+                , expect = Http.expectWhatever LogoutComplete
+                }
+            )
+
+        ( LogoutComplete _, _ ) ->
+            ( model, Nav.reload )
+
         ( _, _ ) ->
             ( model, Cmd.none )
 
 
-changePage : Url.Url -> Model -> ( Model, Cmd Msg )
+changePage : Url -> Model -> ( Model, Cmd Msg )
 changePage url model =
     let
         maybeRoute =
@@ -212,10 +226,11 @@ view model =
             }
 
 
-viewLinks : Html msg
+viewLinks : Html Msg
 viewLinks =
     ul []
         [ li [] [ a [ href "/" ] [ text "Home" ] ]
         , li [] [ a [ href "/login" ] [ text "Login" ] ]
         , li [] [ a [ href "/register" ] [ text "Register" ] ]
+        , li [] [ button [ onClick LogoutClicked ] [ text "Log out" ] ]
         ]
