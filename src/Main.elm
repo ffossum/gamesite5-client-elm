@@ -46,12 +46,17 @@ init : () -> Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
     let
         global =
-            { navKey = key, session = NotLoggedIn }
+            { navKey = key, session = UnknownLoggedIn }
 
         initModel =
             Home global
     in
-    changePage url initModel
+    ( changePage url initModel
+    , Http.get
+        { url = "/api/users/me"
+        , expect = expectJson LoginCheckComplete sessionUserDecoder
+        }
+    )
 
 
 
@@ -67,6 +72,7 @@ type Msg
     | LoginMsg Login.Msg
     | LogoutClicked
     | LogoutComplete (Result Http.Error ())
+    | LoginCheckComplete (Result Http.Error SessionUser)
 
 
 port sendMessage : E.Value -> Cmd msg
@@ -89,6 +95,27 @@ getGlobal model =
 
         NotFound global ->
             global
+
+
+modifyGlobal : (Global -> Global) -> Model -> Model
+modifyGlobal f model =
+    case model of
+        Home global ->
+            Home (f global)
+
+        Login loginModel ->
+            Login (modifyRecordGlobal f loginModel)
+
+        Register registerModel ->
+            Register (modifyRecordGlobal f registerModel)
+
+        NotFound global ->
+            NotFound (f global)
+
+
+modifyRecordGlobal : (Global -> Global) -> { a | global : Global } -> { a | global : Global }
+modifyRecordGlobal f model =
+    { model | global = f model.global }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -121,7 +148,7 @@ update msg model =
                     ( model, Nav.load href )
 
         ( UrlChanged url, _ ) ->
-            changePage url model
+            ( changePage url model, Cmd.none )
 
         ( SendMessageClicked, _ ) ->
             ( model, sendMessage (E.string "Hello") )
@@ -140,11 +167,17 @@ update msg model =
         ( LogoutComplete _, _ ) ->
             ( model, Nav.reload )
 
+        ( LoginCheckComplete (Err _), _ ) ->
+            ( modifyGlobal (\global -> { global | session = NotLoggedIn }) model, Cmd.none )
+
+        ( LoginCheckComplete (Ok user), _ ) ->
+            ( modifyGlobal (\global -> { global | session = LoggedIn user }) model, Cmd.none )
+
         ( _, _ ) ->
             ( model, Cmd.none )
 
 
-changePage : Url -> Model -> ( Model, Cmd Msg )
+changePage : Url -> Model -> Model
 changePage url model =
     let
         maybeRoute =
@@ -158,13 +191,13 @@ changePage url model =
             Debug.todo "not found page"
 
         Just Route.Home ->
-            ( Home global, Cmd.none )
+            Home global
 
         Just Route.Login ->
-            ( Login (Login.init global), Cmd.none )
+            Login (Login.init global)
 
         Just Route.Register ->
-            ( Register (Register.init global), Cmd.none )
+            Register (Register.init global)
 
 
 

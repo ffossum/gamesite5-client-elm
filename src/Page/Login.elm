@@ -87,6 +87,9 @@ view model =
     { title = "Login"
     , content =
         case model.global.session of
+            UnknownLoggedIn ->
+                text ""
+
             LoggedIn user ->
                 text "You are logged in."
 

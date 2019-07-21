@@ -11,7 +11,8 @@ type alias Global =
 
 
 type Session
-    = LoggedIn SessionUser
+    = UnknownLoggedIn
+    | LoggedIn SessionUser
     | NotLoggedIn
 
 

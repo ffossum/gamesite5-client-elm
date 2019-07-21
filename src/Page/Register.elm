@@ -48,6 +48,9 @@ view model =
     { title = "Register"
     , content =
         case model.global.session of
+            UnknownLoggedIn ->
+                text ""
+
             NotLoggedIn ->
                 viewForm model.form
 
