@@ -1,6 +1,6 @@
 module Page.Register exposing (Model, Msg(..), init, update, view)
 
-import Global exposing (Global, Session(..), SessionUser)
+import Global exposing (Global, Session(..), SessionUser, sessionUserDecoder)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
@@ -52,7 +52,7 @@ view model =
                 viewForm model.form
 
             LoggedIn user ->
-                text "You are logged in"
+                text "You are logged in."
     }
 
 
@@ -136,7 +136,7 @@ update msg model =
         SubmittedForm ->
             ( model
             , Http.post
-                { url = "//localhost:8080/api/users"
+                { url = "//localhost:8080/api/register"
                 , body =
                     Http.jsonBody
                         (encodeCreateUser
@@ -175,14 +175,6 @@ encodeCreateUser u =
         , ( "email", E.string u.email )
         , ( "password", E.string u.password )
         ]
-
-
-sessionUserDecoder : D.Decoder SessionUser
-sessionUserDecoder =
-    D.map3 SessionUser
-        (D.at [ "id" ] D.int)
-        (D.at [ "name" ] D.string)
-        (D.at [ "email" ] D.string)
 
 
 {-| Helper function for `update`. Updates the form and returns Cmd.none.

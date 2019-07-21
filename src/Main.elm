@@ -8,6 +8,7 @@ import Html.Attributes exposing (href, target)
 import Html.Events exposing (onClick, onInput)
 import Json.Decode as D
 import Json.Encode as E
+import Page.Login as Login
 import Page.Register as Register
 import Route as Route exposing (Route)
 import Url
@@ -35,6 +36,7 @@ main =
 
 type Model
     = Home Global
+    | Login Login.Model
     | Register Register.Model
     | NotFound Global
 
@@ -61,6 +63,7 @@ type Msg
     | MessageReceived String
     | SendMessageClicked
     | RegisterMsg Register.Msg
+    | LoginMsg Login.Msg
 
 
 port sendMessage : E.Value -> Cmd msg
@@ -74,6 +77,9 @@ getGlobal model =
     case model of
         Home global ->
             global
+
+        Login loginModel ->
+            loginModel.global
 
         Register registerModel ->
             registerModel.global
@@ -92,6 +98,15 @@ update msg model =
             in
             ( Register updatedModel
             , Cmd.map RegisterMsg registerCmd
+            )
+
+        ( LoginMsg loginMsg, Login loginModel ) ->
+            let
+                ( updatedModel, loginCmd ) =
+                    Login.update loginMsg loginModel
+            in
+            ( Login updatedModel
+            , Cmd.map LoginMsg loginCmd
             )
 
         ( LinkClicked urlRequest, _ ) ->
@@ -130,6 +145,9 @@ changePage url model =
 
         Just Route.Home ->
             ( Home global, Cmd.none )
+
+        Just Route.Login ->
+            ( Login (Login.init global), Cmd.none )
 
         Just Route.Register ->
             ( Register (Register.init global), Cmd.none )
@@ -171,6 +189,18 @@ view model =
                 ]
             }
 
+        Login loginModel ->
+            let
+                loginPage =
+                    Login.view loginModel
+            in
+            { title = loginPage.title
+            , body =
+                [ viewLinks
+                , Html.map LoginMsg loginPage.content
+                ]
+            }
+
         Home global ->
             { title = "Home"
             , body = [ viewLinks ]
@@ -186,5 +216,6 @@ viewLinks : Html msg
 viewLinks =
     ul []
         [ li [] [ a [ href "/" ] [ text "Home" ] ]
+        , li [] [ a [ href "/login" ] [ text "Login" ] ]
         , li [] [ a [ href "/register" ] [ text "Register" ] ]
         ]

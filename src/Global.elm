@@ -1,6 +1,7 @@
-module Global exposing (Global, Session(..), SessionUser)
+module Global exposing (Global, Session(..), SessionUser, sessionUserDecoder)
 
 import Browser.Navigation as Nav
+import Json.Decode as D
 
 
 type alias Global =
@@ -19,3 +20,11 @@ type alias SessionUser =
     , name : String
     , email : String
     }
+
+
+sessionUserDecoder : D.Decoder SessionUser
+sessionUserDecoder =
+    D.map3 SessionUser
+        (D.at [ "id" ] D.int)
+        (D.at [ "name" ] D.string)
+        (D.at [ "email" ] D.string)
