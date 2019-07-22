@@ -1,5 +1,6 @@
 module Page.Register exposing (Model, Msg(..), init, update, view)
 
+import Data.Validation as V exposing (Valid, Validation(..))
 import Global exposing (Global, Session(..), SessionUser, sessionUserDecoder)
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -13,9 +14,14 @@ import Json.Encode as E
 -- MODEL
 
 
+type alias Problem =
+    String
+
+
 type alias Model =
     { global : Global
     , form : Form
+    , problems : List Problem
     }
 
 
@@ -36,6 +42,7 @@ init global =
         , password = ""
         , repeatPassword = ""
         }
+    , problems = []
     }
 
 
@@ -52,18 +59,19 @@ view model =
                 text ""
 
             NotLoggedIn ->
-                viewForm model.form
+                viewForm model.form model.problems
 
             LoggedIn user ->
                 text "You are logged in."
     }
 
 
-viewForm : Form -> Html Msg
-viewForm form =
+viewForm : Form -> List String -> Html Msg
+viewForm form problems =
     Html.form [ onSubmit SubmittedForm ]
         [ p []
-            [ label
+            [ ul [] (List.map (\p -> li [] [ text p ]) problems)
+            , label
                 [ for "register_username" ]
                 [ text "Username" ]
             , input
@@ -137,26 +145,55 @@ update msg model =
             updateForm (\form -> { form | repeatPassword = repeatPassword }) model
 
         SubmittedForm ->
-            ( model
-            , Http.post
-                { url = "//localhost:8080/api/register"
-                , body =
-                    Http.jsonBody
-                        (encodeCreateUser
-                            { name = model.form.username
-                            , email = model.form.email
-                            , password = model.form.password
-                            }
-                        )
-                , expect = Http.expectJson CompletedRegister sessionUserDecoder
-                }
-            )
+            let
+                trimmedForm =
+                    trimFields model.form
+
+                validateResult =
+                    validateForm trimmedForm
+            in
+            case validateResult of
+                Ok validatedForm ->
+                    let
+                        (Trimmed form) =
+                            V.fromValid validatedForm
+                    in
+                    ( { model | form = form, problems = [] }
+                    , postValidForm validatedForm
+                    )
+
+                Err problems ->
+                    let
+                        (Trimmed form) =
+                            trimmedForm
+                    in
+                    ( { model | form = form, problems = problems }, Cmd.none )
 
         CompletedRegister (Ok user) ->
             ( updateGlobal (\global -> { global | session = LoggedIn user }) model, Cmd.none )
 
         CompletedRegister (Err _) ->
             ( model, Cmd.none )
+
+
+postValidForm : Valid TrimmedForm -> Cmd Msg
+postValidForm validForm =
+    let
+        (Trimmed form) =
+            V.fromValid validForm
+    in
+    Http.post
+        { url = "//localhost:8080/api/register"
+        , body =
+            Http.jsonBody
+                (encodeCreateUser
+                    { name = form.username
+                    , email = form.email
+                    , password = form.password
+                    }
+                )
+        , expect = Http.expectJson CompletedRegister sessionUserDecoder
+        }
 
 
 updateGlobal : (Global -> Global) -> { a | global : Global } -> { a | global : Global }
@@ -192,16 +229,10 @@ updateForm transform model =
 -- FORM
 
 
-{-| Marks that we've trimmed the form's fields, so we don't accidentally send
-it to the server without having trimmed it!
--}
 type TrimmedForm
     = Trimmed Form
 
 
-{-| Don't trim while the user is typing! That would be super annoying.
-Instead, trim only on submit.
--}
 trimFields : Form -> TrimmedForm
 trimFields form =
     Trimmed
@@ -210,3 +241,47 @@ trimFields form =
         , password = String.trim form.password
         , repeatPassword = String.trim form.repeatPassword
         }
+
+
+validateForm : TrimmedForm -> Result (List Problem) (Valid TrimmedForm)
+validateForm (Trimmed form) =
+    V.validate
+        (Good (Trimmed form)
+            |> V.combineErrors (validateUsername form.username)
+            |> V.combineErrors (validateEmail form.email)
+            |> V.combineErrors
+                (validatePassword form.password
+                    |> V.firstError (validateRepeatPassword form.password form.repeatPassword)
+                )
+        )
+
+
+isBlank : String -> Bool
+isBlank =
+    String.trim >> String.isEmpty
+
+
+validateUsername : String -> Validation Problem String
+validateUsername name =
+    V.ensure (not << isBlank) (\_ -> "Username cannot be blank.") name
+
+
+validateEmail : String -> Validation Problem String
+validateEmail =
+    V.ensure (not << isBlank) (\_ -> "Email cannot be blank.")
+
+
+validatePassword : String -> Validation Problem String
+validatePassword =
+    let
+        minLength =
+            8
+    in
+    V.ensure
+        (\s -> String.length s >= minLength)
+        (\_ -> "Password must be at least " ++ String.fromInt minLength ++ " characters long.")
+
+
+validateRepeatPassword : String -> String -> Validation Problem String
+validateRepeatPassword password repeatPassword =
+    V.ensure (\rp -> password == rp) (\_ -> "Passwords do not match.") repeatPassword
