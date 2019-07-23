@@ -246,13 +246,10 @@ trimFields form =
 validateForm : TrimmedForm -> Result (List Problem) (Valid TrimmedForm)
 validateForm (Trimmed form) =
     V.validate
-        (Good (Trimmed form)
-            |> V.combineErrors (validateUsername form.username)
-            |> V.combineErrors (validateEmail form.email)
-            |> V.combineErrors
-                (validatePassword form.password
-                    |> V.firstError (validateRepeatPassword form.password form.repeatPassword)
-                )
+        (validateUsername form.username
+            |> V.chainAll (validateEmail form.email)
+            |> V.chainAll (validatePassword form.password form.repeatPassword)
+            |> V.successAs (Trimmed form)
         )
 
 
@@ -263,25 +260,22 @@ isBlank =
 
 validateUsername : String -> Validation Problem String
 validateUsername name =
-    V.ensure (not << isBlank) (\_ -> "Username cannot be blank.") name
+    V.ensure (not (isBlank name)) "Username cannot be blank." name
 
 
 validateEmail : String -> Validation Problem String
-validateEmail =
-    V.ensure (not << isBlank) (\_ -> "Email cannot be blank.")
+validateEmail email =
+    V.ensure (not (isBlank email)) "Email cannot be blank." email
 
 
-validatePassword : String -> Validation Problem String
-validatePassword =
+validatePassword : String -> String -> Validation Problem String
+validatePassword password repeatPassword =
     let
         minLength =
             8
+
+        lengthFailureDesc =
+            "Password must be at least " ++ String.fromInt minLength ++ " characters long."
     in
-    V.ensure
-        (\s -> String.length s >= minLength)
-        (\_ -> "Password must be at least " ++ String.fromInt minLength ++ " characters long.")
-
-
-validateRepeatPassword : String -> String -> Validation Problem String
-validateRepeatPassword password repeatPassword =
-    V.ensure (\rp -> password == rp) (\_ -> "Passwords do not match.") repeatPassword
+    V.ensure (String.length password >= minLength) lengthFailureDesc password
+        |> V.chainFirst (V.ensure (password == repeatPassword) "Passwords do not match." repeatPassword)

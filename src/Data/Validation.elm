@@ -1,9 +1,9 @@
-module Data.Validation exposing (Valid, Validation(..), ap, apply, combineErrors, ensure, firstError, fromResult, fromValid, map, toResult, validate)
+module Data.Validation exposing (Valid, Validation(..), apply, chainAll, chainFirst, ensure, fromResult, fromValid, map, successAs, toResult, validate)
 
 
 type Validation e a
-    = Bad (List e)
-    | Good a
+    = Failure (List e)
+    | Success a
 
 
 type Valid a
@@ -13,10 +13,10 @@ type Valid a
 validate : Validation e a -> Result (List e) (Valid a)
 validate va =
     case va of
-        Bad es ->
+        Failure es ->
             Err es
 
-        Good a ->
+        Success a ->
             Ok (Valid a)
 
 
@@ -28,11 +28,11 @@ fromValid (Valid a) =
 map : (a -> b) -> Validation e a -> Validation e b
 map f v =
     case v of
-        Bad e ->
-            Bad e
+        Failure e ->
+            Failure e
 
-        Good a ->
-            Good (f a)
+        Success a ->
+            Success (f a)
 
 
 map2 : (a -> b -> c) -> Validation e a -> Validation e b -> Validation e c
@@ -43,32 +43,27 @@ map2 f va vb =
 
 apply : Validation e a -> Validation e (a -> b) -> Validation e b
 apply va vf =
-    ap vf va
+    case ( va, vf ) of
+        ( Success a, Success f ) ->
+            Success (f a)
 
+        ( Failure e2, Failure e1 ) ->
+            Failure (e1 ++ e2)
 
-ap : Validation e (a -> b) -> Validation e a -> Validation e b
-ap vf va =
-    case ( vf, va ) of
-        ( Good f, Good a ) ->
-            Good (f a)
+        ( Failure es, Success _ ) ->
+            Failure es
 
-        ( Bad es1, Bad es2 ) ->
-            Bad (es1 ++ es2)
-
-        ( Bad es, Good _ ) ->
-            Bad es
-
-        ( Good _, Bad es ) ->
-            Bad es
+        ( Success _, Failure es ) ->
+            Failure es
 
 
 toResult : Validation e a -> Result (List e) a
 toResult v =
     case v of
-        Bad e ->
+        Failure e ->
             Err e
 
-        Good a ->
+        Success a ->
             Ok a
 
 
@@ -76,31 +71,49 @@ fromResult : Result e a -> Validation e a
 fromResult r =
     case r of
         Err e ->
-            Bad [ e ]
+            Failure [ e ]
 
         Ok a ->
-            Good a
+            Success a
 
 
-ensure : (a -> Bool) -> (a -> e) -> a -> Validation e a
-ensure pred err a =
-    if pred a then
-        Good a
+ensure : Bool -> e -> a -> Validation e a
+ensure p e a =
+    if p then
+        Success a
 
     else
-        Bad [ err a ]
+        Failure [ e ]
 
 
-combineErrors : Validation e a -> Validation e b -> Validation e b
-combineErrors va vb =
-    map (\a b -> b) va |> apply vb
+chainAll : Validation e a -> Validation e b -> Validation e a
+chainAll target source =
+    case ( target, source ) of
+        ( Failure targetErrors, Failure sourceErrors ) ->
+            Failure (sourceErrors ++ targetErrors)
 
-
-firstError : Validation e a -> Validation e b -> Validation e b
-firstError va vb =
-    case ( va, vb ) of
-        ( Bad e, _ ) ->
-            Bad e
+        ( Success _, Failure e ) ->
+            Failure e
 
         _ ->
-            vb
+            target
+
+
+chainFirst : Validation e a -> Validation e b -> Validation e a
+chainFirst target source =
+    case ( target, source ) of
+        ( _, Failure e ) ->
+            Failure e
+
+        _ ->
+            target
+
+
+successAs : a -> Validation e b -> Validation e a
+successAs a =
+    map (\_ -> a)
+
+
+void : Validation e a -> Validation e ()
+void =
+    map (\_ -> ())
