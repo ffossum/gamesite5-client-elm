@@ -223,6 +223,10 @@ subscriptions _ =
 
 view : Model -> Browser.Document Msg
 view model =
+    let
+        global =
+            getGlobal model
+    in
     case model of
         Register registerModel ->
             let
@@ -231,7 +235,7 @@ view model =
             in
             { title = registerPage.title
             , body =
-                [ viewLinks
+                [ viewHeader global.session
                 , Html.map RegisterMsg registerPage.content
                 ]
             }
@@ -243,27 +247,44 @@ view model =
             in
             { title = loginPage.title
             , body =
-                [ viewLinks
+                [ viewHeader global.session
                 , Html.map LoginMsg loginPage.content
                 ]
             }
 
-        Home global ->
+        Home _ ->
             { title = "Home"
-            , body = [ viewLinks ]
+            , body = [ viewHeader global.session ]
             }
 
-        NotFound global ->
+        NotFound _ ->
             { title = "Not found"
-            , body = [ text "Not found" ]
+            , body =
+                [ viewHeader global.session
+                , p [] [ text "Page not found" ]
+                ]
             }
 
 
-viewLinks : Html Msg
-viewLinks =
-    ul []
-        [ li [] [ a [ href "/" ] [ text "Home" ] ]
-        , li [] [ a [ href "/login" ] [ text "Login" ] ]
-        , li [] [ a [ href "/register" ] [ text "Register" ] ]
-        , li [] [ button [ onClick LogoutClicked ] [ text "Log out" ] ]
+viewHeader : Session -> Html Msg
+viewHeader session =
+    let
+        navItems =
+            [ li [] [ a [ href "/" ] [ text "Home" ] ] ]
+                ++ (case session of
+                        UnknownLoggedIn ->
+                            []
+
+                        LoggedIn _ ->
+                            [ li [] [ button [ onClick LogoutClicked ] [ text "Log out" ] ] ]
+
+                        NotLoggedIn ->
+                            [ li [] [ a [ href "/login" ] [ text "Login" ] ]
+                            , li [] [ a [ href "/register" ] [ text "Register" ] ]
+                            ]
+                   )
+    in
+    Html.header []
+        [ nav []
+            [ ul [] navItems ]
         ]
