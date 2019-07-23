@@ -69,9 +69,9 @@ view model =
 viewForm : Form -> List String -> Html Msg
 viewForm form problems =
     Html.form [ onSubmit SubmittedForm ]
-        [ p []
-            [ ul [] (List.map (\p -> li [] [ text p ]) problems)
-            , label
+        [ ul [] (List.map (\p -> li [] [ text p ]) problems)
+        , p []
+            [ label
                 [ for "register_username" ]
                 [ text "Username" ]
             , input
