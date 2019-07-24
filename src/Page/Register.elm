@@ -1,5 +1,6 @@
 module Page.Register exposing (Model, Msg(..), init, update, view)
 
+import Browser.Navigation as Nav
 import Data.Validation as V exposing (Valid, Validation(..))
 import Global exposing (Global, Session(..), SessionUser, sessionUserDecoder)
 import Html exposing (..)
@@ -170,7 +171,7 @@ update msg model =
                     ( { model | form = form, problems = problems }, Cmd.none )
 
         CompletedRegister (Ok user) ->
-            ( updateGlobal (\global -> { global | session = LoggedIn user }) model, Cmd.none )
+            ( updateGlobal (\global -> { global | session = LoggedIn user }) model, Nav.reload )
 
         CompletedRegister (Err _) ->
             ( model, Cmd.none )

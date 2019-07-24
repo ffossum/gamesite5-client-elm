@@ -1,5 +1,6 @@
 module Page.Login exposing (Form, Model, Msg, init, update, view)
 
+import Browser.Navigation as Nav
 import Data.Validation exposing (..)
 import Global exposing (..)
 import Html exposing (..)
@@ -72,7 +73,7 @@ update msg model =
                 updatedGlobal =
                     { global | session = LoggedIn user }
             in
-            ( { model | global = updatedGlobal }, Cmd.none )
+            ( { model | global = updatedGlobal }, Nav.reload )
 
 
 postValidForm : Valid TrimmedForm -> Cmd Msg
