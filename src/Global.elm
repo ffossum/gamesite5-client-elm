@@ -26,6 +26,6 @@ type alias SessionUser =
 sessionUserDecoder : D.Decoder SessionUser
 sessionUserDecoder =
     D.map3 SessionUser
-        (D.at [ "id" ] D.int)
-        (D.at [ "name" ] D.string)
-        (D.at [ "email" ] D.string)
+        (D.field "id" D.int)
+        (D.field "name" D.string)
+        (D.field "email" D.string)

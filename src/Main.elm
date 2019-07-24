@@ -2,6 +2,7 @@ port module Main exposing (Model, init, main, receiveMessage, sendMessage, subsc
 
 import Browser
 import Browser.Navigation as Nav
+import Event exposing (Event(..), eventDecoder)
 import Global exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (href, target)
@@ -51,12 +52,7 @@ init flags url key =
         initModel =
             Home global
     in
-    ( changePage url initModel
-    , Http.get
-        { url = "/api/users/me"
-        , expect = expectJson LoginCheckComplete sessionUserDecoder
-        }
-    )
+    ( changePage url initModel, Cmd.none )
 
 
 
@@ -66,13 +62,11 @@ init flags url key =
 type Msg
     = LinkClicked Browser.UrlRequest
     | UrlChanged Url
-    | MessageReceived String
-    | SendMessageClicked
     | RegisterMsg Register.Msg
     | LoginMsg Login.Msg
     | LogoutClicked
     | LogoutComplete (Result Http.Error ())
-    | LoginCheckComplete (Result Http.Error SessionUser)
+    | ReceivedLogin (Maybe SessionUser)
 
 
 port sendMessage : E.Value -> Cmd msg
@@ -150,12 +144,6 @@ update msg model =
         ( UrlChanged url, _ ) ->
             ( changePage url model, Cmd.none )
 
-        ( SendMessageClicked, _ ) ->
-            ( model, sendMessage (E.string "Hello") )
-
-        ( MessageReceived m, _ ) ->
-            ( model, Cmd.none )
-
         ( LogoutClicked, _ ) ->
             ( model
             , Http.get
@@ -167,11 +155,11 @@ update msg model =
         ( LogoutComplete _, _ ) ->
             ( model, Nav.reload )
 
-        ( LoginCheckComplete (Err _), _ ) ->
-            ( modifyGlobal (\global -> { global | session = NotLoggedIn }) model, Cmd.none )
-
-        ( LoginCheckComplete (Ok user), _ ) ->
+        ( ReceivedLogin (Just user), _ ) ->
             ( modifyGlobal (\global -> { global | session = LoggedIn user }) model, Cmd.none )
+
+        ( ReceivedLogin Nothing, _ ) ->
+            ( modifyGlobal (\global -> { global | session = NotLoggedIn }) model, Cmd.none )
 
         ( _, _ ) ->
             ( model, Cmd.none )
@@ -208,12 +196,14 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     receiveMessage
         (\v ->
-            case D.decodeValue D.string v of
-                Ok str ->
-                    MessageReceived str
+            case D.decodeValue eventDecoder v of
+                Ok (LoginEvent maybeUser) ->
+                    ReceivedLogin maybeUser
 
-                _ ->
-                    MessageReceived "Error parsing message"
+                Err err ->
+                    Debug.log
+                        (D.errorToString err)
+                        (Debug.todo "handle unrecognized event")
         )
 
 
